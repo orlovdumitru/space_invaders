@@ -1,5 +1,7 @@
 import pygame
 import random
+from pygame import mixer
+
 
 MEDIA = 'media'
 
@@ -9,12 +11,20 @@ class SpaceInvaders(object):
         self.screen_width = 1200
         self.screen_height = 800
 
-        # player location
+        self.game_running = True
+       # player location
         self.playerX = self.screen_width // 2
         self.playerY = (self.screen_height // 5) * 4
         self.enemies = {}
         self.bullets = []
+        self.explosions = []
+        self.score = 0
+        
+        self.text_left = 20
+        self.text_top = 20
+        self.increase_score = 20
         self.bullet_speed = 5
+        self.number_of_enemies = 4
         self.enemy_x_speed = 0.6
         self.enemy_y_speed = 0.5
         self.player_x_speed = 3
@@ -24,8 +34,15 @@ class SpaceInvaders(object):
         self.temp_lef_right = 0
         self.temp_up_down = 0
 
-        # initialize pygame
+         # initialize pygame
         pygame.init()
+
+        # define score font type and size
+        # self.font = pygame.font.Font('freesansbold.ttf', 32) # default font
+        # custom font (https://www.dafont.com/)
+        self.font = pygame.font.Font(f'{MEDIA}/FIRESTARTER.TTF', 32)
+
+        self.game_over_font = pygame.font.Font(f'{MEDIA}/FIRESTARTER.TTF', 60)
 
         # create a screen
         self.screen = pygame.display.set_mode( (self.screen_width, self.screen_height) )
@@ -33,6 +50,9 @@ class SpaceInvaders(object):
         # background image
         self.background = pygame.image.load(f'{MEDIA}/bg.jpg')
 
+        # background sound
+        mixer.music.load(f'{MEDIA}/backgroun_sound_1.wav')
+        mixer.music.play(-1)
 
         # title and game icon
         pygame.display.set_caption("Space invaders")
@@ -53,22 +73,37 @@ class SpaceInvaders(object):
 
     def enemy_hit(self, bullet):
         for enemy in self.enemies:
-
             if ( bullet['y_coor'] <= (self.enemies[enemy]['positionY'] + self.icon_size) and (bullet['y_coor'] >= self.enemies[enemy]['positionY']) ) and ( (bullet['x_coor'] <= (self.enemies[enemy]['positionX'] + self.icon_size)) and ( bullet['x_coor'] >= self.enemies[enemy]['positionX'])):
+                x_explo = self.enemies[enemy]['positionX']
+                y_explo = self.enemies[enemy]['positionY']
                 del self.enemies[enemy]
-                self.enemy_on_screen
+
+                # add shoot sound effect
+                self.add_sound_effect('explosion.wav')
+                
                 self.add_enemy()
+                self.create_explostion(x_explo, y_explo)
+                self.score += self.increase_score
                 return True
 
 
+    # add sound effect
+    def add_sound_effect(self, sound):
+        sound_effect = mixer.Sound(f'{MEDIA}/{sound}')
+        sound_effect.play()
+
+
     def add_bullet(self):
+        # add shoot sound effect
+        self.add_sound_effect('shoot.wav')
+
         new_bullet = {
             'x_coor': (self.playerX + 16),
             'y_coor': self.playerY,
             'bullet':  pygame.image.load(f'{MEDIA}/bullet.png')
         }
         self.bullets.append(new_bullet)
-
+       
 
     def move_bullets(self):
         for bullet in self.bullets:
@@ -84,7 +119,7 @@ class SpaceInvaders(object):
 
     def add_enemy(self):
         # add enemy to dict
-        if len(self.enemies) < 3:
+        if len(self.enemies) < self.number_of_enemies:
             self.enemy_conter += 1
             random_enemy = random.randint(1, 3)
             enemyX = random.randint(1, 1150)
@@ -116,7 +151,7 @@ class SpaceInvaders(object):
 
             # game lost check
             if self.check_collapse(enemy):
-                print('Game is lost')
+                self.game_running = False
 
             if self.enemies[enemy]['move_direction'] == 'left' and self.enemies[enemy]['positionX'] > 0:
                 self.enemies[enemy]['positionX'] -= self.enemy_x_speed
@@ -137,12 +172,44 @@ class SpaceInvaders(object):
         self.screen.blit(self.playerImg, (position_x, position_y) )
 
 
+    def create_explostion(self, coor_x, coor_y):
+        explosion = {
+            'explosion':[
+                pygame.image.load(f'{MEDIA}/explosion_0.png'),
+                pygame.image.load(f'{MEDIA}/explosion_1.png'),
+                pygame.image.load(f'{MEDIA}/explosion_2.png'),
+            ],
+            'x_coor': coor_x,
+            'y_coor': coor_y
+        }
+        self.explosions.append(explosion)
+        self.display_explosion()
+
+
+    def display_explosion(self):
+        for explosion in self.explosions:
+            for image_explosion in explosion['explosion']:
+                self.screen.blit(image_explosion, (explosion['x_coor'], explosion['y_coor']))
+            # remove explosion from list
+            self.explosions.remove(explosion)
+
+
+    def game_score(self):
+        score = self.font.render(f'Score: {self.score}', True, (255, 255, 255))
+        self.screen.blit(score, (self.text_left, self.text_top))
+
+    
+    def game_over_message(self):
+        game_over = self.game_over_font.render(f"""GAME OVER YOUR SCORE: {self.score}""", True, (255, 255, 255))
+        self.screen.blit(game_over, (100, self.screen_height//2 - 50))
+
+
     def run_game(self):
         # game running in a loop until close button is pressed
-        running = True
-        while running:
+        
+        while self.game_running:
             # set screen color
-            self.screen.fill( (58, 55, 59) )
+            self.screen.fill( (0, 0, 0) )
             # set background image below background color to stay on top of color
             self.screen.blit(self.background, (0, 0))
 
@@ -150,7 +217,7 @@ class SpaceInvaders(object):
             for event in pygame.event.get():
                 # close the window 
                 if event.type == pygame.QUIT:
-                    running = False
+                    self.game_running = False
 
                 # left right arrow event
                 if event.type == pygame.KEYDOWN:
@@ -195,11 +262,28 @@ class SpaceInvaders(object):
             # bullets on screen
             self.move_bullets()
 
+            # display score
+            self.game_score()
+
+            # update game view
+            pygame.display.update()
+        
+        end_game = True
+        while end_game:
+            self.game_over_message()
+            
+            # get events
+            for event in pygame.event.get():
+                # close the window 
+                if event.type == pygame.QUIT:
+                    end_game = False
+            
             # update game view
             pygame.display.update()
 
-
+    
 
 
 game = SpaceInvaders()
 game.run_game()
+game.game_over
